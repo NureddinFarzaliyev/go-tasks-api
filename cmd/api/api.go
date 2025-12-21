@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/NureddinFarzaliyev/go-tasks-api/internal/server"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
@@ -26,11 +27,7 @@ func (app *application) mount() http.Handler {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Timeout(60 * time.Second))
 
-	r.Route("/v1", func(r chi.Router) {
-		r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-			w.Write([]byte("v1 index route"))
-		})
-	})
+	server.Routes(r)
 
 	return r
 }
