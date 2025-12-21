@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/NureddinFarzaliyev/go-tasks-api/internal/httpx"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -33,21 +34,19 @@ type TaskHandler struct {
 func (h *TaskHandler) Get(w http.ResponseWriter, r *http.Request) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(h.tasks)
+	httpx.JSON(w, http.StatusOK, httpx.Envelope{"data": h.tasks})
 }
 
 func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var t Task
 
 	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		httpx.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	if strings.TrimSpace(t.Description) == "" {
-		http.Error(w, "Description is required", http.StatusBadRequest)
+		httpx.Error(w, "Description is required", http.StatusBadRequest)
 		return
 	}
 
@@ -61,8 +60,7 @@ func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
 	defer h.mu.Unlock()
 
 	h.tasks = append(h.tasks, t)
-
-	w.WriteHeader(http.StatusCreated)
+	httpx.JSON(w, http.StatusCreated, httpx.Envelope{"data": t})
 }
 
 func (h *TaskHandler) Edit(w http.ResponseWriter, r *http.Request) {
@@ -73,7 +71,7 @@ func (h *TaskHandler) Edit(w http.ResponseWriter, r *http.Request) {
 	err = json.NewDecoder(r.Body).Decode(&body)
 
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		httpx.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -89,7 +87,7 @@ func (h *TaskHandler) Edit(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if t == nil {
-		http.Error(w, "Task not found", http.StatusNotFound)
+		httpx.Error(w, "Task not found", http.StatusNotFound)
 		return
 	}
 
@@ -107,8 +105,7 @@ func (h *TaskHandler) Edit(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(t)
+	httpx.JSON(w, http.StatusOK, httpx.Envelope{"data": t})
 }
 
 func (h *TaskHandler) Delete(w http.ResponseWriter, r *http.Request) {
@@ -116,7 +113,7 @@ func (h *TaskHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	intId, err := strconv.Atoi(strId)
 
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		httpx.Error(w, "ID is not correct", http.StatusBadRequest)
 		return
 	}
 
@@ -132,11 +129,10 @@ func (h *TaskHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if idxToDelete == -1 {
-		http.Error(w, "Task not found", http.StatusNotFound)
+		httpx.Error(w, "Task not found", http.StatusNotFound)
 		return
 	}
 
 	h.tasks = append(h.tasks[:idxToDelete], h.tasks[idxToDelete+1:]...)
-
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusNoContent)
 }
