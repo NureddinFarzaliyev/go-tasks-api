@@ -7,11 +7,14 @@ import (
 
 func Routes(r chi.Router) {
 	r.Route("/v1", func(r chi.Router) {
-		tasksRoutes(r, &task.TaskHandler{})
+		tasksRoutes(r)
 	})
 }
 
-func tasksRoutes(r chi.Router, h *task.TaskHandler) {
+func tasksRoutes(r chi.Router) {
+	memoryRepo := task.NewInMemoryTaskRepo()
+	h := task.NewTaskHandler(memoryRepo)
+
 	r.Route("/tasks", func(r chi.Router) {
 		r.Get("/", h.Get)
 		r.Post("/", h.Create)

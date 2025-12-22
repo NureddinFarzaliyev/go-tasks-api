@@ -5,36 +5,22 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/NureddinFarzaliyev/go-tasks-api/internal/httpx"
 	"github.com/go-chi/chi/v5"
 )
 
-type Task struct {
-	ID          int        `json:"id"`
-	Description string     `json:"description"`
-	Completed   bool       `json:"completed"`
-	CreatedAt   time.Time  `json:"createdAt"`
-	CompletedAt *time.Time `json:"completedAt"`
-}
-
-type UpdateTaskRequest struct {
-	Description *string `json:"description"`
-	Completed   *bool   `json:"completed"`
-}
-
 type TaskHandler struct {
-	tasks  []Task
-	nextID int
-	mu     sync.Mutex
+	repo TaskRepository
+}
+
+func NewTaskHandler(repo TaskRepository) *TaskHandler {
+	return &TaskHandler{repo: repo}
 }
 
 func (h *TaskHandler) Get(w http.ResponseWriter, r *http.Request) {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	httpx.JSON(w, http.StatusOK, httpx.Envelope{"data": h.tasks})
+	tasks := h.repo.Get()
+	httpx.JSON(w, http.StatusOK, httpx.Envelope{"data": tasks})
 }
 
 func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -50,17 +36,14 @@ func (h *TaskHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.nextID++
-	t.ID = h.nextID
-	t.Completed = false
-	t.CreatedAt = time.Now()
-	t.CompletedAt = nil
+	data, err := h.repo.Create(t)
 
-	h.mu.Lock()
-	defer h.mu.Unlock()
+	if err != nil {
+		httpx.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 
-	h.tasks = append(h.tasks, t)
-	httpx.JSON(w, http.StatusCreated, httpx.Envelope{"data": t})
+	httpx.JSON(w, http.StatusCreated, httpx.Envelope{"data": data})
 }
 
 func (h *TaskHandler) Edit(w http.ResponseWriter, r *http.Request) {
@@ -71,38 +54,20 @@ func (h *TaskHandler) Edit(w http.ResponseWriter, r *http.Request) {
 	err = json.NewDecoder(r.Body).Decode(&body)
 
 	if err != nil {
-		httpx.Error(w, err.Error(), http.StatusBadRequest)
+		switch err {
+		case ErrTaskNotFound:
+			httpx.Error(w, err.Error(), http.StatusNotFound)
+		default:
+			httpx.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
 
-	var t *Task
+	t, err := h.repo.Edit(idInt, body)
 
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
-	for idx, val := range h.tasks {
-		if val.ID == idInt {
-			t = &h.tasks[idx]
-		}
-	}
-
-	if t == nil {
-		httpx.Error(w, "Task not found", http.StatusNotFound)
+	if err != nil {
+		httpx.Error(w, err.Error(), http.StatusNotFound)
 		return
-	}
-
-	if body.Description != nil {
-		t.Description = *body.Description
-	}
-
-	if body.Completed != nil {
-		t.Completed = *body.Completed
-		if *body.Completed {
-			now := time.Now()
-			t.CompletedAt = &now
-		} else {
-			t.CompletedAt = nil
-		}
 	}
 
 	httpx.JSON(w, http.StatusOK, httpx.Envelope{"data": t})
@@ -117,22 +82,17 @@ func (h *TaskHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.mu.Lock()
-	defer h.mu.Unlock()
+	err = h.repo.Delete(intId)
 
-	var idxToDelete int = -1
-
-	for idx, key := range h.tasks {
-		if key.ID == intId {
-			idxToDelete = idx
+	if err != nil {
+		switch err {
+		case ErrTaskNotFound:
+			httpx.Error(w, err.Error(), http.StatusNotFound)
+		default:
+			httpx.Error(w, err.Error(), http.StatusInternalServerError)
 		}
-	}
-
-	if idxToDelete == -1 {
-		httpx.Error(w, "Task not found", http.StatusNotFound)
 		return
 	}
 
-	h.tasks = append(h.tasks[:idxToDelete], h.tasks[idxToDelete+1:]...)
 	w.WriteHeader(http.StatusNoContent)
 }
