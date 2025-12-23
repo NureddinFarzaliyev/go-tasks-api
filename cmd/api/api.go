@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
 	"time"
@@ -12,6 +13,7 @@ import (
 
 type config struct {
 	addr string
+	db   *sql.DB
 }
 
 type application struct {
@@ -27,7 +29,7 @@ func (app *application) mount() http.Handler {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Timeout(60 * time.Second))
 
-	server.Routes(r)
+	server.Routes(r, app.config.db)
 
 	return r
 }
